@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Battery Notifier
+Comment=Battery status notifier with voice alerts
+Exec="setsid -f $HOME/.local/bin/battery-notifier >/dev/null 2>&1 &"
+Icon=utilities-terminal
+Terminal=false
+Type=Application
+X-GNOME-Autostart-enabled=true

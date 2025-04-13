@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+
+######################################################################################################
+# Script Name : battery-notifier
+# Description : Monitors battery status and sends desktop notifications with voice alerts when:
+#               - Battery is low (<15%) while discharging
+#               - Battery is high (>90%) while charging or full
+# Author      : Amateur Hacker
+# Source      : https://github.com/amateur-hacker/battery-notifier
+######################################################################################################
+
+LOCKFILE=/tmp/battery_notifier.lock
+
+# Check if the script is already running using the lock file and process ID
+is_already_running() {
+  [[ -e $LOCKFILE ]] && kill -0 "$(cat "$LOCKFILE")" 2>/dev/null
+}
+
+# Write the current script's PID to the lock file
+write_lockfile() {
+  echo $$ >"$LOCKFILE"
+}
+
+# Cleanup: remove the lock file on exit
+remove_lockfile() {
+  rm -f "$LOCKFILE"
+}
+
+# Get battery status: Charging, Discharging, or Full
+get_battery_status() {
+  acpi -b | awk -F': |, ' '{print $2}'
+}
+
+# Get battery percentage as a number
+get_battery_percentage() {
+  acpi -b | awk -F', ' '{print $2}' | tr -d '%'
+}
+
+# Send a low battery notification and play a warning voice clip
+notify_low_battery() {
+  notify-send -i battery-alert "Low Battery" "$1% remaining" -u critical -r 9991 -t 5000
+  mpv "$XDG_DATA_HOME/battery-notifier/voices/low-charged.mp3"
+}
+
+# Send a full battery notification and play a voice clip
+notify_full_battery() {
+  notify-send -i battery-charging "Full Battery" "Battery at $1%" -r 9991 -t 5000
+  mpv "$XDG_DATA_HOME/battery-notifier/voices/fully-charged.mp3"
+}
+
+# Main logic loop: checks battery every 1 minute and triggers alerts
+main_loop() {
+  while true; do
+    local status
+    status=$(get_battery_status)
+
+    local charge
+    charge=$(get_battery_percentage)
+
+    if [[ $status == "Discharging" && $charge -lt 15 ]]; then
+      notify_low_battery "$charge"
+    elif [[ ($status == "Charging" || $status == "Full") && $charge -gt 90 ]]; then
+      notify_full_battery "$charge"
+    fi
+
+    sleep 1m
+  done
+}
+
+# Start the script if not already running, then begin monitoring loop
+if is_already_running; then
+  echo "Battery notifier is already running"
+  exit 1
+fi
+
+write_lockfile
+trap remove_lockfile EXIT
+
+main_loop
